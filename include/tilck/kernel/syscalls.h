@@ -634,3 +634,8 @@ CREATE_STUB_SYSCALL_IMPL(sys_fchmodat2)
 
 int sys_tilck_cmd(int cmd_n, ulong a1, ulong a2, ulong a3, ulong a4);
 
+#if defined(__x86_64__)
+
+int sys_arch_prctl(int code, ulong addr);
+
+#endif

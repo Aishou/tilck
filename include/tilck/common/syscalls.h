@@ -33,6 +33,16 @@ enum tilck_cmd {
    #define FCNTL_SYSCALL_N     SYS_fcntl
    #define MMAP_SYSCALL_N      SYS_mmap
 
+   #define SYS_getuid          102
+   #define SYS_getgid          104
+   #define SYS_geteuid         107
+   #define SYS_getegid         108
+   #define SYS_lchown          94
+   #define SYS_fchown          93
+   #define SYS_chown           92
+   #define SYS_llseek          62
+   #define SYS_gettimeofday    96
+
 #elif defined(__i386__)
 
    #define STAT_SYSCALL_N      SYS_stat64

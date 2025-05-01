@@ -20,11 +20,19 @@
 void syscall_int80_entry(void);
 void sysenter_entry(void);
 
-typedef long (*syscall_type)();
+typedef long (*syscall_type)(
+   ulong, ulong, ulong, ulong, ulong, ulong // args
+);
+
+typedef long (*syscall_raw_regs)(
+   void *, // regs *
+   ulong, ulong, ulong, ulong, ulong, ulong
+);
 
 #define SYSFL_NO_TRACE                      0b00000001
 #define SYSFL_NO_SIG                        0b00000010
 #define SYSFL_NO_PREEMPT                    0b00000100
+#define SYSFL_RAW_REGS                      0b00001000
 
 struct syscall {
 
@@ -59,33 +67,499 @@ static void __unknown_syscall(void)
  * The numbers and the syscall names MUST BE in sync with the following file
  * in the Linux kernel:
  *
- *    ADD SYSCALL LINUX TBL FILE
+ *    arch/x86/entry/syscalls/syscall_64.tbl
  *
  * Lasy synced with Linux 5.15-rc2.
  */
 static struct syscall syscalls[MAX_SYSCALLS] =
 {
+   [0] = DECL_SYS(sys_read, 0),
+   [1] = DECL_SYS(sys_write, 0),
+   [2] = DECL_SYS(sys_open, 0),
+   [3] = DECL_SYS(sys_close, 0),
+   [4] = DECL_SYS(sys_stat, 0),
+   [5] = DECL_SYS(sys_fstat, 0),
+   [6] = DECL_SYS(sys_lstat, 0),
+   [7] = DECL_SYS(sys_poll, 0),
+   [8] = DECL_SYS(sys_lseek, 0),
+   [9] = DECL_SYS(sys_mmap, 0),
+   [10] = DECL_SYS(sys_mprotect, 0),
+   [11] = DECL_SYS(sys_munmap, 0),
+   [12] = DECL_SYS(sys_brk, 0),
+   [13] = DECL_SYS(sys_rt_sigaction, 0),
+   [14] = DECL_SYS(sys_rt_sigprocmask, 0),
+   [15] = DECL_SYS(sys_rt_sigreturn, 0),
+   [16] = DECL_SYS(sys_ioctl, 0),
+   [17] = DECL_SYS(sys_pread64, 0),
+   [18] = DECL_SYS(sys_pwrite64, 0),
+   [19] = DECL_SYS(sys_readv, 0),
+   [20] = DECL_SYS(sys_writev, 0),
+   [21] = DECL_SYS(sys_access, 0),
+   [22] = DECL_SYS(sys_pipe, 0),
+   [23] = DECL_SYS(sys_select, 0),
+   [24] = DECL_SYS(sys_sched_yield, 0),
+   [25] = DECL_SYS(sys_mremap, 0),
+   [26] = DECL_SYS(sys_msync, 0),
+   [27] = DECL_SYS(sys_mincore, 0),
+   [28] = DECL_SYS(sys_madvise, 0),
+   [29] = DECL_SYS(sys_shmget, 0),
+   [30] = DECL_SYS(sys_shmat, 0),
+   [31] = DECL_SYS(sys_shmctl, 0),
+   [32] = DECL_SYS(sys_dup, 0),
+   [33] = DECL_SYS(sys_dup2, 0),
+   [34] = DECL_SYS(sys_pause, 0),
+   [35] = DECL_SYS(sys_nanosleep, 0),
+   [36] = DECL_SYS(sys_getitimer, 0),
+   [37] = DECL_SYS(sys_alarm, 0),
+   [38] = DECL_SYS(sys_setitimer, 0),
+   [39] = DECL_SYS(sys_getpid, 0),
+   [40] = DECL_SYS(sys_sendfile, 0),
+   [41] = DECL_SYS(sys_socket, 0),
+   [42] = DECL_SYS(sys_connect, 0),
+   [43] = DECL_SYS(sys_accept, 0),
+   [44] = DECL_SYS(sys_sendto, 0),
+   [45] = DECL_SYS(sys_recvfrom, 0),
+   [46] = DECL_SYS(sys_sendmsg, 0),
+   [47] = DECL_SYS(sys_recvmsg, 0),
+   [48] = DECL_SYS(sys_shutdown, 0),
+   [49] = DECL_SYS(sys_bind, 0),
+   [50] = DECL_SYS(sys_listen, 0),
+   [51] = DECL_SYS(sys_getsockname, 0),
+   [52] = DECL_SYS(sys_getpeername, 0),
+   [53] = DECL_SYS(sys_socketpair, 0),
+   [54] = DECL_SYS(sys_setsockopt, 0),
+   [55] = DECL_SYS(sys_getsockopt, 0),
+   [56] = DECL_SYS(sys_clone, 0),
+   [57] = DECL_SYS(sys_fork, 0),
+   [58] = DECL_SYS(sys_vfork, 0),
+   [59] = DECL_SYS(sys_execve, 0),
+   [60] = DECL_SYS(sys_exit, 0),
+   [61] = DECL_SYS(sys_wait4, 0),
+   [62] = DECL_SYS(sys_kill, 0),
+   [63] = DECL_SYS(sys_uname, 0),
+   [64] = DECL_SYS(sys_semget, 0),
+   [65] = DECL_SYS(sys_semop, 0),
+   [66] = DECL_SYS(sys_semctl, 0),
+   [67] = DECL_SYS(sys_shmdt, 0),
+   [68] = DECL_SYS(sys_msgget, 0),
+   [69] = DECL_SYS(sys_msgsnd, 0),
+   [70] = DECL_SYS(sys_msgrcv, 0),
+   [71] = DECL_SYS(sys_msgctl, 0),
+   [72] = DECL_SYS(sys_fcntl, 0),
+   [73] = DECL_SYS(sys_flock, 0),
+   [74] = DECL_SYS(sys_fsync, 0),
+   [75] = DECL_SYS(sys_fdatasync, 0),
+   [76] = DECL_SYS(sys_truncate, 0),
+   [77] = DECL_SYS(sys_ftruncate, 0),
+   [78] = DECL_SYS(sys_getdents, 0),
+   [79] = DECL_SYS(sys_getcwd, 0),
+   [80] = DECL_SYS(sys_chdir, 0),
+   [81] = DECL_SYS(sys_fchdir, 0),
+   [82] = DECL_SYS(sys_rename, 0),
+   [83] = DECL_SYS(sys_mkdir, 0),
+   [84] = DECL_SYS(sys_rmdir, 0),
+   [85] = DECL_SYS(sys_creat, 0),
+   [86] = DECL_SYS(sys_link, 0),
+   [87] = DECL_SYS(sys_unlink, 0),
+   [88] = DECL_SYS(sys_symlink, 0),
+   [89] = DECL_SYS(sys_readlink, 0),
+   [90] = DECL_SYS(sys_chmod, 0),
+   [91] = DECL_SYS(sys_fchmod, 0),
+   [92] = DECL_SYS(sys_chown, 0),
+   [93] = DECL_SYS(sys_fchown, 0),
+   [94] = DECL_SYS(sys_lchown, 0),
+   [95] = DECL_SYS(sys_umask, 0),
+   [96] = DECL_SYS(sys_gettimeofday, 0),
+   [97] = DECL_SYS(sys_getrlimit, 0),
+   [98] = DECL_SYS(sys_getrusage, 0),
+   [99] = DECL_SYS(sys_sysinfo, 0),
+   [100] = DECL_SYS(sys_times, 0),
+   [101] = DECL_SYS(sys_ptrace, 0),
+   [102] = DECL_SYS(sys_getuid, 0),
+   [103] = DECL_SYS(sys_syslog, 0),
+   [104] = DECL_SYS(sys_getgid, 0),
+   [105] = DECL_SYS(sys_setuid, 0),
+   [106] = DECL_SYS(sys_setgid, 0),
+   [107] = DECL_SYS(sys_geteuid, 0),
+   [108] = DECL_SYS(sys_getegid, 0),
+   [109] = DECL_SYS(sys_setpgid, 0),
+   [110] = DECL_SYS(sys_getppid, 0),
+   [111] = DECL_SYS(sys_getpgrp, 0),
+   [112] = DECL_SYS(sys_setsid, 0),
+   [113] = DECL_SYS(sys_setreuid, 0),
+   [114] = DECL_SYS(sys_setregid, 0),
+   [115] = DECL_SYS(sys_getgroups, 0),
+   [116] = DECL_SYS(sys_setgroups, 0),
+   [117] = DECL_SYS(sys_setresuid, 0),
+   [118] = DECL_SYS(sys_getresuid, 0),
+   [119] = DECL_SYS(sys_setresgid, 0),
+   [120] = DECL_SYS(sys_getresgid, 0),
+   [121] = DECL_SYS(sys_getpgid, 0),
+   [122] = DECL_SYS(sys_setfsuid, 0),
+   [123] = DECL_SYS(sys_setfsgid, 0),
+   [124] = DECL_SYS(sys_getsid, 0),
+   [125] = DECL_SYS(sys_capget, 0),
+   [126] = DECL_SYS(sys_capset, 0),
+   [127] = DECL_SYS(sys_rt_sigpending, 0),
+   [128] = DECL_SYS(sys_rt_sigtimedwait, 0),
+   [129] = DECL_SYS(sys_rt_sigqueueinfo, 0),
+   [130] = DECL_SYS(sys_rt_sigsuspend, 0),
+   [131] = DECL_SYS(sys_sigaltstack, 0),
+   [132] = DECL_SYS(sys_utime, 0),
+   [133] = DECL_SYS(sys_mknod, 0),
+   [134] = DECL_SYS(sys_uselib, 0),
+   [135] = DECL_SYS(sys_personality, 0),
+   [136] = DECL_SYS(sys_ustat, 0),
+   [137] = DECL_SYS(sys_statfs, 0),
+   [138] = DECL_SYS(sys_fstatfs, 0),
+   [139] = DECL_SYS(sys_sysfs, 0),
+   [140] = DECL_SYS(sys_getpriority, 0),
+   [141] = DECL_SYS(sys_setpriority, 0),
+   [142] = DECL_SYS(sys_sched_setparam, 0),
+   [143] = DECL_SYS(sys_sched_getparam, 0),
+   [144] = DECL_SYS(sys_sched_setscheduler, 0),
+   [145] = DECL_SYS(sys_sched_getscheduler, 0),
+   [146] = DECL_SYS(sys_sched_get_priority_max, 0),
+   [147] = DECL_SYS(sys_sched_get_priority_min, 0),
+   [148] = DECL_SYS(sys_sched_rr_get_interval, 0),
+   [149] = DECL_SYS(sys_mlock, 0),
+   [150] = DECL_SYS(sys_munlock, 0),
+   [151] = DECL_SYS(sys_mlockall, 0),
+   [152] = DECL_SYS(sys_munlockall, 0),
+   [153] = DECL_SYS(sys_vhangup, 0),
+   [154] = DECL_SYS(sys_modify_ldt, 0),
+   [155] = DECL_SYS(sys_pivot_root, 0),
+   [156] = DECL_SYS(sys__sysctl, 0),
+   [157] = DECL_SYS(sys_prctl, 0),
+   [158] = DECL_SYS(sys_arch_prctl, 0),
+   [159] = DECL_SYS(sys_adjtimex, 0),
+   [160] = DECL_SYS(sys_setrlimit, 0),
+   [161] = DECL_SYS(sys_chroot, 0),
+   [162] = DECL_SYS(sys_sync, 0),
+   [163] = DECL_SYS(sys_acct, 0),
+   [164] = DECL_SYS(sys_settimeofday, 0),
+   [165] = DECL_SYS(sys_mount, 0),
+   [166] = DECL_SYS(sys_umount2, 0),
+   [167] = DECL_SYS(sys_swapon, 0),
+   [168] = DECL_SYS(sys_swapoff, 0),
+   [169] = DECL_SYS(sys_reboot, 0),
+   [170] = DECL_SYS(sys_sethostname, 0),
+   [171] = DECL_SYS(sys_setdomainname, 0),
+   [172] = DECL_SYS(sys_iopl, 0),
+   [173] = DECL_SYS(sys_ioperm, 0),
+   [174] = DECL_SYS(sys_create_module, 0),
+   [175] = DECL_SYS(sys_init_module, 0),
+   [176] = DECL_SYS(sys_delete_module, 0),
+   [177] = DECL_SYS(sys_get_kernel_syms, 0),
+   [178] = DECL_SYS(sys_query_module, 0),
+   [179] = DECL_SYS(sys_quotactl, 0),
+   [180] = DECL_SYS(sys_nfsservctl, 0),
+   [181] = DECL_SYS(sys_getpmsg, 0),
+   [182] = DECL_SYS(sys_putpmsg, 0),
+   [183] = DECL_SYS(sys_afs_syscall, 0),
+   [184] = DECL_SYS(sys_tuxcall, 0),
+   [185] = DECL_SYS(sys_security, 0),
+   [186] = DECL_SYS(sys_gettid, 0),
+   [187] = DECL_SYS(sys_readahead, 0),
+   [188] = DECL_SYS(sys_setxattr, 0),
+   [189] = DECL_SYS(sys_lsetxattr, 0),
+   [190] = DECL_SYS(sys_fsetxattr, 0),
+   [191] = DECL_SYS(sys_getxattr, 0),
+   [192] = DECL_SYS(sys_lgetxattr, 0),
+   [193] = DECL_SYS(sys_fgetxattr, 0),
+   [194] = DECL_SYS(sys_listxattr, 0),
+   [195] = DECL_SYS(sys_llistxattr, 0),
+   [196] = DECL_SYS(sys_flistxattr, 0),
+   [197] = DECL_SYS(sys_removexattr, 0),
+   [198] = DECL_SYS(sys_lremovexattr, 0),
+   [199] = DECL_SYS(sys_fremovexattr, 0),
+   [200] = DECL_SYS(sys_tkill, 0),
+   [201] = DECL_SYS(sys_time, 0),
+   [202] = DECL_SYS(sys_futex, 0),
+   [203] = DECL_SYS(sys_sched_setaffinity, 0),
+   [204] = DECL_SYS(sys_sched_getaffinity, 0),
+   [205] = DECL_SYS(sys_set_thread_area, 0),
+   [206] = DECL_SYS(sys_io_setup, 0),
+   [207] = DECL_SYS(sys_io_destroy, 0),
+   [208] = DECL_SYS(sys_io_getevents, 0),
+   [209] = DECL_SYS(sys_io_submit, 0),
+   [210] = DECL_SYS(sys_io_cancel, 0),
+   [211] = DECL_SYS(sys_get_thread_area, 0),
+   [212] = DECL_SYS(sys_lookup_dcookie, 0),
+   [213] = DECL_SYS(sys_epoll_create, 0),
+   [214] = DECL_SYS(sys_epoll_ctl_old, 0),
+   [215] = DECL_SYS(sys_epoll_wait_old, 0),
+   [216] = DECL_SYS(sys_remap_file_pages, 0),
+   [217] = DECL_SYS(sys_getdents64, 0),
+   [218] = DECL_SYS(sys_set_tid_address, 0),
+   [219] = DECL_SYS(sys_restart_syscall, 0),
+   [220] = DECL_SYS(sys_semtimedop, 0),
+   [221] = DECL_SYS(sys_fadvise64, 0),
+   [222] = DECL_SYS(sys_timer_create, 0),
+   [223] = DECL_SYS(sys_timer_settime, 0),
+   [224] = DECL_SYS(sys_timer_gettime, 0),
+   [225] = DECL_SYS(sys_timer_getoverrun, 0),
+   [226] = DECL_SYS(sys_timer_delete, 0),
+   [227] = DECL_SYS(sys_clock_settime, 0),
+   [228] = DECL_SYS(sys_clock_gettime, 0),
+   [229] = DECL_SYS(sys_clock_getres, 0),
+   [230] = DECL_SYS(sys_clock_nanosleep, 0),
+   [231] = DECL_SYS(sys_exit_group, 0),
+   [232] = DECL_SYS(sys_epoll_wait, 0),
+   [233] = DECL_SYS(sys_epoll_ctl, 0),
+   [234] = DECL_SYS(sys_tgkill, 0),
+   [235] = DECL_SYS(sys_utimes, 0),
+   [236] = DECL_SYS(sys_vserver, 0),
+   [237] = DECL_SYS(sys_mbind, 0),
+   [238] = DECL_SYS(sys_set_mempolicy, 0),
+   [239] = DECL_SYS(sys_get_mempolicy, 0),
+   [240] = DECL_SYS(sys_mq_open, 0),
+   [241] = DECL_SYS(sys_mq_unlink, 0),
+   [242] = DECL_SYS(sys_mq_timedsend, 0),
+   [243] = DECL_SYS(sys_mq_timedreceive, 0),
+   [244] = DECL_SYS(sys_mq_notify, 0),
+   [245] = DECL_SYS(sys_mq_getsetattr, 0),
+   [246] = DECL_SYS(sys_kexec_load, 0),
+   [247] = DECL_SYS(sys_waitid, 0),
+   [248] = DECL_SYS(sys_add_key, 0),
+   [249] = DECL_SYS(sys_request_key, 0),
+   [250] = DECL_SYS(sys_keyctl, 0),
+   [251] = DECL_SYS(sys_ioprio_set, 0),
+   [252] = DECL_SYS(sys_ioprio_get, 0),
+   [253] = DECL_SYS(sys_inotify_init, 0),
+   [254] = DECL_SYS(sys_inotify_add_watch, 0),
+   [255] = DECL_SYS(sys_inotify_rm_watch, 0),
+   [256] = DECL_SYS(sys_migrate_pages, 0),
+   [257] = DECL_SYS(sys_openat, 0),
+   [258] = DECL_SYS(sys_mkdirat, 0),
+   [259] = DECL_SYS(sys_mknodat, 0),
+   [260] = DECL_SYS(sys_fchownat, 0),
+   [261] = DECL_SYS(sys_futimesat, 0),
+   [262] = DECL_SYS(sys_newfstatat, 0),
+   [263] = DECL_SYS(sys_unlinkat, 0),
+   [264] = DECL_SYS(sys_renameat, 0),
+   [265] = DECL_SYS(sys_linkat, 0),
+   [266] = DECL_SYS(sys_symlinkat, 0),
+   [267] = DECL_SYS(sys_readlinkat, 0),
+   [268] = DECL_SYS(sys_fchmodat, 0),
+   [269] = DECL_SYS(sys_faccessat, 0),
+   [270] = DECL_SYS(sys_pselect6, 0),
+   [271] = DECL_SYS(sys_ppoll, 0),
+   [272] = DECL_SYS(sys_unshare, 0),
+   [273] = DECL_SYS(sys_set_robust_list, 0),
+   [274] = DECL_SYS(sys_get_robust_list, 0),
+   [275] = DECL_SYS(sys_splice, 0),
+   [276] = DECL_SYS(sys_tee, 0),
+   [277] = DECL_SYS(sys_sync_file_range, 0),
+   [278] = DECL_SYS(sys_vmsplice, 0),
+   [279] = DECL_SYS(sys_move_pages, 0),
+   [280] = DECL_SYS(sys_utimensat, 0),
+   [281] = DECL_SYS(sys_epoll_pwait, 0),
+   [282] = DECL_SYS(sys_signalfd, 0),
+   [283] = DECL_SYS(sys_timerfd_create, 0),
+   [284] = DECL_SYS(sys_eventfd, 0),
+   [285] = DECL_SYS(sys_fallocate, 0),
+   [286] = DECL_SYS(sys_timerfd_settime, 0),
+   [287] = DECL_SYS(sys_timerfd_gettime, 0),
+   [288] = DECL_SYS(sys_accept4, 0),
+   [289] = DECL_SYS(sys_signalfd4, 0),
+   [290] = DECL_SYS(sys_eventfd2, 0),
+   [291] = DECL_SYS(sys_epoll_create1, 0),
+   [292] = DECL_SYS(sys_dup3, 0),
+   [293] = DECL_SYS(sys_pipe2, 0),
+   [294] = DECL_SYS(sys_inotify_init1, 0),
+   [295] = DECL_SYS(sys_preadv, 0),
+   [296] = DECL_SYS(sys_pwritev, 0),
+   [297] = DECL_SYS(sys_rt_tgsigqueueinfo, 0),
+   [298] = DECL_SYS(sys_perf_event_open, 0),
+   [299] = DECL_SYS(sys_recvmmsg, 0),
+   [300] = DECL_SYS(sys_fanotify_init, 0),
+   [301] = DECL_SYS(sys_fanotify_mark, 0),
+   [302] = DECL_SYS(sys_prlimit64, 0),
+   [303] = DECL_SYS(sys_name_to_handle_at, 0),
+   [304] = DECL_SYS(sys_open_by_handle_at, 0),
+   [305] = DECL_SYS(sys_clock_adjtime, 0),
+   [306] = DECL_SYS(sys_syncfs, 0),
+   [307] = DECL_SYS(sys_sendmmsg, 0),
+   [308] = DECL_SYS(sys_setns, 0),
+   [309] = DECL_SYS(sys_process_vm_readv, 0),
+   [310] = DECL_SYS(sys_process_vm_writev, 0),
+   [311] = DECL_SYS(sys_kcmp, 0),
+   [312] = DECL_SYS(sys_finit_module, 0),
+   [313] = DECL_SYS(sys_sched_setattr, 0),
+   [314] = DECL_SYS(sys_sched_getattr, 0),
+   [315] = DECL_SYS(sys_renameat2, 0),
+   [316] = DECL_SYS(sys_seccomp, 0),
+   [317] = DECL_SYS(sys_getrandom, 0),
+   [318] = DECL_SYS(sys_memfd_create, 0),
+   [319] = DECL_SYS(sys_bpf, 0),
+   [320] = DECL_SYS(sys_execveat, 0),
+   [321] = DECL_SYS(sys_userfaultfd, 0),
+   [322] = DECL_SYS(sys_membarrier, 0),
+   [323] = DECL_SYS(sys_mlock2, 0),
+   [324] = DECL_SYS(sys_copy_file_range, 0),
+   [325] = DECL_SYS(sys_preadv2, 0),
+   [326] = DECL_SYS(sys_pwritev2, 0),
+   [327] = DECL_SYS(sys_pkey_mprotect, 0),
+   [328] = DECL_SYS(sys_pkey_alloc, 0),
+   [329] = DECL_SYS(sys_pkey_free, 0),
+   [330] = DECL_SYS(sys_statx, 0),
+   [331] = DECL_SYS(sys_io_pgetevents, 0),
+   [332] = DECL_SYS(sys_rseq, 0),
+   [333] = DECL_SYS(sys_pidfd_send_signal, 0),
+   [334] = DECL_SYS(sys_io_uring_setup, 0),
+   [335] = DECL_SYS(sys_io_uring_enter, 0),
+   [336] = DECL_SYS(sys_io_uring_register, 0),
+   [337] = DECL_SYS(sys_open_tree, 0),
+   [338] = DECL_SYS(sys_move_mount, 0),
+   [339] = DECL_SYS(sys_fsopen, 0),
+   [340] = DECL_SYS(sys_fsconfig, 0),
+   [341] = DECL_SYS(sys_fsmount, 0),
+   [342] = DECL_SYS(sys_fspick, 0),
+   [343] = DECL_SYS(sys_pidfd_open, 0),
+   [344] = DECL_SYS(sys_clone3, 0),
+   [345] = DECL_SYS(sys_close_range, 0),
+   [346] = DECL_SYS(sys_openat2, 0),
+   [347] = DECL_SYS(sys_pidfd_getfd, 0),
+   [348] = DECL_SYS(sys_faccessat2, 0),
+   [349] = DECL_SYS(sys_process_madvise, 0),
+   [350] = DECL_SYS(sys_epoll_pwait2, 0),
+   [351] = DECL_SYS(sys_mount_setattr, 0),
+   [352] = DECL_SYS(sys_quotactl_fd, 0),
+   [353] = DECL_SYS(sys_landlock_create_ruleset, 0),
+   [354] = DECL_SYS(sys_landlock_add_rule, 0),
+   [355] = DECL_SYS(sys_landlock_restrict_self, 0),
+   [356] = DECL_SYS(sys_memfd_secret, 0),
+   [357] = DECL_SYS(sys_process_mrelease, 0),
+   [358] = DECL_SYS(sys_kexec_file_load, 0),
+   [359] = DECL_SYS(sys_futex_waitv, 0),
+   [360] = DECL_SYS(sys_set_mempolicy_home_node, 0),
+   [361] = DECL_SYS(sys_cachestat, 0),
+   [362] = DECL_SYS(sys_fchmodat2, 0),
+   [363 ... (TILCK_CMD_SYSCALL - 1)] = DECL_UNKNOWN_SYSCALL,
+
    [TILCK_CMD_SYSCALL] = DECL_SYS(sys_tilck_cmd, 0),
 };
 
 void *get_syscall_func_ptr(u32 n)
 {
-   NOT_IMPLEMENTED();
-   return syscalls[n].fptr;
+   if (n >= ARRAY_SIZE(syscalls))
+      return NULL;
+
+   return syscalls[n].func;
 }
 
 int get_syscall_num(void *func)
 {
-   NOT_IMPLEMENTED();
+   if (!func)
+      return -1;
+
+   for (int i = 0; i < ARRAY_SIZE(syscalls); i++)
+      if (syscalls[i].func == func)
+         return i;
+
+   return -1;
+}
+
+static NO_INLINE void
+do_syscall_int(syscall_type fptr, regs_t *r, bool raw_regs)
+{
+   if (LIKELY(!raw_regs)) {
+      r->rax = fptr(r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+   } else {
+      syscall_raw_regs fptr2 = (void *)fptr;
+      r->rax = fptr2(r, r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+   }
+}
+
+static void do_special_syscall(regs_t *r)
+{
+   struct task *curr = get_curr_task();
+   const u32 sn = r->rax;
+   const u32 fl = syscalls[sn].flags;
+   const syscall_type fptr = syscalls[sn].fptr;
+   const bool signals = ~fl & SYSFL_NO_SIG;
+   const bool preemptable = ~fl & SYSFL_NO_PREEMPT;
+   const bool traceable = ~fl & SYSFL_NO_TRACE;
+   const bool raw_regs = fl & SYSFL_RAW_REGS;
+
+   if (signals)
+      process_signals(curr, sig_pre_syscall, r);
+
+   if (preemptable)
+      enable_preemption();
+
+   if (traceable)
+      trace_sys_enter(sn,r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+
+   do_syscall_int(fptr, r, raw_regs);
+
+   if (traceable)
+      trace_sys_exit(sn,r->rax,r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+
+   if (preemptable)
+      disable_preemption();
+
+   if (signals)
+      process_signals(curr, sig_in_syscall, r);
+}
+
+static void do_syscall(regs_t *r)
+{
+   struct task *curr = get_curr_task();
+   const u32 sn = r->rax;
+   const syscall_type fptr = syscalls[sn].fptr;
+
+   process_signals(curr, sig_pre_syscall, r);
+   enable_preemption();
+   {
+      trace_sys_enter(sn,r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+      do_syscall_int(fptr, r, false);
+      trace_sys_exit(sn,r->rax,r->rdi,r->rsi,r->rdx,r->r10,r->r8,r->r9);
+   }
+   disable_preemption();
+   process_signals(curr, sig_in_syscall, r);
 }
 
 void handle_syscall(regs_t *r)
 {
-   NOT_IMPLEMENTED();
+   const u32 sn = r->rax;
+
+   /*
+    * In case of a sysenter syscall, the eflags are saved in kernel mode after
+    * the cpu disabled the interrupts. Therefore, with the statement below we
+    * force the IF flag to be set in any case (for the int 0x80 case it is not
+    * necessary).
+    */
+   r->rflags |= EFLAGS_IF;
+
+   save_current_task_state(r, false);
+   set_current_task_in_kernel();
+
+   if (LIKELY(sn < ARRAY_SIZE(syscalls))) {
+
+      if (LIKELY(syscalls[sn].flags == 0))
+         do_syscall(r);
+      else
+         do_special_syscall(r);
+
+   } else {
+
+      unknown_syscall_int(r, sn);
+   }
+
+   set_current_task_in_user_mode();
 }
 
 void init_syscall_interfaces(void)
 {
-   NOT_IMPLEMENTED();
-}
+   /* Set the entry for the int 0x80 syscall interface */
+   idt_set_entry(SYSCALL_SOFT_INTERRUPT,
+                 syscall_int80_entry,
+                 X86_KERNEL_CODE_SEL,
+                 IDT_FLAG_PRESENT | IDT_FLAG_INT_GATE | IDT_FLAG_DPL3);
 
+   /* Setup the sysenter interface */
+   wrmsr(MSR_IA32_SYSENTER_CS, X86_KERNEL_CODE_SEL);
+   wrmsr(MSR_IA32_SYSENTER_EIP, (ulong) &sysenter_entry);
+}
